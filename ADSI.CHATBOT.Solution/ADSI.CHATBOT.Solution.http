@@ -1,0 +1,6 @@
+@ADSI.CHATBOT.Solution_HostAddress = http://localhost:5252
+
+GET {{ADSI.CHATBOT.Solution_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

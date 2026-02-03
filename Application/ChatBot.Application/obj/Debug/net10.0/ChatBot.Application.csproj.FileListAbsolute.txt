@@ -1,0 +1,16 @@
+C:\GitHub\Adsi\Application\ChatBot.Application\bin\Debug\net10.0\ChatBot.Application.deps.json
+C:\GitHub\Adsi\Application\ChatBot.Application\bin\Debug\net10.0\ChatBot.Application.dll
+C:\GitHub\Adsi\Application\ChatBot.Application\bin\Debug\net10.0\ChatBot.Application.pdb
+C:\GitHub\Adsi\Application\ChatBot.Application\bin\Debug\net10.0\ChatBot.Domain.dll
+C:\GitHub\Adsi\Application\ChatBot.Application\bin\Debug\net10.0\ChatBot.Domain.pdb
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot.Application.csproj.AssemblyReference.cache
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot.Application.AssemblyInfoInputs.cache
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot.Application.AssemblyInfo.cs
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot.Application.csproj.CoreCompileInputs.cache
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot..83C85118.Up2Date
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot.Application.dll
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\refint\ChatBot.Application.dll
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot.Application.pdb
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ref\ChatBot.Application.dll
+C:\GitHub\Adsi\Application\ChatBot.Application\obj\Debug\net10.0\ChatBot.Application.sourcelink.json

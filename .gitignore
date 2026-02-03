@@ -4,3 +4,8 @@
 
 /ADSI.CHATBOT.Solution/appsettings.json
 /ADSI.CHATBOT.Solution/Dockerfile
+.vs/
+*.user
+*.suo
+*.cache
+
