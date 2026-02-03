@@ -159,7 +159,7 @@ public class BotConversationEngine : IBotConversationEngine
         var sb = new StringBuilder();
         sb.AppendLine("💼 <b>Tus productos</b>");
         sb.AppendLine("━━━━━━━━━━━━━━━━━━");
-        sb.AppendLine(" # | Tarjeta              |        Saldo");
+        sb.AppendLine("        #    |                 Tarjeta                 |        Saldo        ");
         sb.AppendLine("---------------------------------------------");
 
         for (int i = 0; i < cards.Count; i++)
@@ -181,7 +181,7 @@ public class BotConversationEngine : IBotConversationEngine
         var sb = new StringBuilder();
         sb.AppendLine("📊 <b>Últimos movimientos</b>");
         sb.AppendLine("━━━━━━━━━━━━━━━━━━\\");
-        sb.AppendLine("Fecha  | Descripción               |     Monto");
+        sb.AppendLine("  Fecha  |               Descripción               |     Monto     ");
         sb.AppendLine("-----------------------------------------------");
 
         foreach (var m in card.Movements.Take(5))
