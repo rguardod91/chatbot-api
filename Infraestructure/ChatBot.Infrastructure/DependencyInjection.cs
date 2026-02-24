@@ -4,7 +4,6 @@ using ChatBot.Application.Interfaces.Services;
 using ChatBot.Infrastructure.ExternalServices.Base;
 using ChatBot.Infrastructure.ExternalServices.Services;
 using ChatBot.Infrastructure.ExternalServices.Telegram;
-using ChatBot.Infrastructure.ExternalServices.Tranxa;
 using ChatBot.Infrastructure.ExternalServices.WhatsApp;
 using ChatBot.Infrastructure.Logging;
 using ChatBot.Infrastructure.Logging.Interfaces;
@@ -56,7 +55,6 @@ namespace ChatBot.Infrastructure
 
             services.AddHttpClient<IWhatsAppService, WhatsAppService>();
             services.AddHttpClient<ITelegramService, TelegramService>();
-            services.AddSingleton<IOtpService, OtpService>();
 
 
             services.AddScoped<ITranxaAuditLogRepository, TranxaAuditLogRepository>();

@@ -1,11 +1,21 @@
-﻿################################################################################
-# Este archivo .gitignore ha sido creado automáticamente por Microsoft(R) Visual Studio.
-################################################################################
+﻿# Build
+bin/
+obj/
 
-/ADSI.CHATBOT.Solution/appsettings.json
-/ADSI.CHATBOT.Solution/Dockerfile
+# Visual Studio
 .vs/
 *.user
 *.suo
-*.cache
+
+# Logs
+*.log
+
+# Environment
+appsettings.Development.json
+.env
+
+# Docker
+docker-compose*
+
+
 

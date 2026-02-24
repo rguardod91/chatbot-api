@@ -2,8 +2,6 @@
 using ChatBot.Application.Interfaces.Services;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace ChatBot.Infrastructure.Services;
-
 public class SessionManager : ISessionManager
 {
     private readonly IMemoryCache _cache;
@@ -14,20 +12,20 @@ public class SessionManager : ISessionManager
         _cache = cache;
     }
 
-    public Task<SessionContext> GetSessionAsync(string userId)
+    public Task<SessionContext?> GetSessionAsync(string userId)
     {
-        if (!_cache.TryGetValue(userId, out SessionContext context))
-        {
-            context = new SessionContext();
-            _cache.Set(userId, context, SessionTimeout);
-        }
-
+        _cache.TryGetValue(userId, out SessionContext? context);
         return Task.FromResult(context);
     }
 
     public Task SaveSessionAsync(string userId, SessionContext context)
     {
-        _cache.Set(userId, context, SessionTimeout);
+        var options = new MemoryCacheEntryOptions
+        {
+            SlidingExpiration = SessionTimeout
+        };
+
+        _cache.Set(userId, context, options);
         return Task.CompletedTask;
     }
 }

@@ -1,8 +1,4 @@
-﻿namespace ChatBot.Infrastructure.ExternalServices.Telegram
+﻿public interface ITelegramService
 {
-    public interface ITelegramService
-    {
-        Task SendMessageAsync(long chatId, string message);
-    }
-
+    Task SendMessageAsync(long chatId, string message);
 }

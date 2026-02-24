@@ -12,8 +12,12 @@ namespace ChatBot.Application.DTOs.Tranza.Models
         public List<CardDto> Cards { get; set; } = new();
 
         public string? SelectedTokenId { get; set; }
+        public string? UserEmail { get; set; }
+        public bool IsAuthenticated { get; set; }
+        public int OtpAttempts { get; set; } = 0;
+        public DateTime OtpGeneratedAt { get; set; } = DateTime.UtcNow;
 
-        // 🕒 Control de expiración por inactividad
+        // Control de expiración por inactividad
         public DateTime LastActivity { get; set; } = DateTime.UtcNow;
     }
 }

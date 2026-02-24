@@ -1,86 +1,103 @@
 ﻿using ChatBot.Application.DTOs.Tranza;
 using ChatBot.Application.Interfaces.External;
 using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
+using System.Net.Http.Json;
 
-namespace ChatBot.Infrastructure.ExternalServices.Tranxa;
+namespace ChatBot.Infrastructure.ExternalServices.Services;
 
 public class TranxaService : ITranxaService
 {
-    private readonly HttpClient _httpClient;
+    private readonly HttpClient _client;
     private readonly ITranxaTokenService _tokenService;
 
-    public TranxaService(HttpClient httpClient, ITranxaTokenService tokenService)
+    public TranxaService(HttpClient client, ITranxaTokenService tokenService)
     {
-        _httpClient = httpClient;
+        _client = client;
         _tokenService = tokenService;
     }
 
-    /// <summary>
-    /// Valida identidad y retorna productos, saldo y movimientos desde UltraRed
-    /// </summary>
-    public async Task<UltraRedResponseDto?> GetCustomerProductsAsync(string documentNumber, string docType)
+    private async Task PrepareAuthenticatedClientAsync()
     {
-        var request = await CreateUltraRedRequestAsync(new
-        {
-            idNumber = documentNumber,
-            docType,
-            idClient = (string?)null
-        });
+        _client.DefaultRequestHeaders.Authorization = null;
 
-        var response = await _httpClient.SendAsync(request);
-        var content = await response.Content.ReadAsStringAsync();
+        var token = await _tokenService.GetTokenAsync();
 
-        Console.WriteLine($"UltraRed ultraredCustTrans response: {content}");
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    // ---------- OTP GENERATION ----------
+    public async Task<OtpGenerationResponseDto?> GenerateOtpAsync(string username)
+    {
+        await PrepareAuthenticatedClientAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/Clientes/sendotpgenerated",
+            new { username });
 
         response.EnsureSuccessStatusCode();
 
-        return JsonSerializer.Deserialize<UltraRedResponseDto>(content,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        return await response.Content.ReadFromJsonAsync<OtpGenerationResponseDto>();
     }
 
-    /// <summary>
-    /// Bloquea tarjeta
-    /// </summary>
-    public async Task<BlockCardResponseDto?> BlockCardAsync(string tokenId, int codeBlock)
+    // ---------- OTP VALIDATION ----------
+    public async Task<OtpValidationResponseDto?> ValidateOtpAsync(string username, string userOtp)
     {
-        var token = await _tokenService.GetTokenAsync();
+        await PrepareAuthenticatedClientAsync();
 
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", token);
-
-        var request = new BlockCardRequestDto
+        var body = new
         {
-            TokenId = tokenId,
-            CodeBlock = codeBlock
+            username = username,
+            userOtp = userOtp
         };
 
-        var json = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
+        var response = await _client.PostAsJsonAsync(
+            "/api/Clientes/validateotp",
+            body);
 
-        var response = await _httpClient.PostAsync("/api/Tarjetas/blockCard", json);
+        response.EnsureSuccessStatusCode();
 
-        var content = await response.Content.ReadAsStringAsync();
-
-        return JsonSerializer.Deserialize<BlockCardResponseDto>(content, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        return await response.Content.ReadFromJsonAsync<OtpValidationResponseDto>();
     }
 
-    /// <summary>
-    /// Crea request autenticado hacia UltraRed
-    /// </summary>
-    private async Task<HttpRequestMessage> CreateUltraRedRequestAsync(object body)
+
+    // ---------- PRODUCTS ----------
+    public async Task<UltraRedResponseDto?> GetCustomerProductsAsync(string documentNumber, string docType)
     {
-        var token = await _tokenService.GetTokenAsync();
+        await PrepareAuthenticatedClientAsync();
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/Tarjetas/ultraredCustTrans");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var body = new
+        {
+            idNumber = documentNumber,
+            docType = docType,
+            idClient = (string?)null
+        };
 
-        var json = JsonSerializer.Serialize(body);
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        var response = await _client.PostAsJsonAsync(
+            "/api/Tarjetas/ultraredCustTrans",
+            body);
 
-        return request;
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"UltraRed error: {response.StatusCode} - {error}");
+        }
+
+        return await response.Content.ReadFromJsonAsync<UltraRedResponseDto>();
+    }
+
+
+    // ---------- BLOCK CARD ----------
+    public async Task<BlockCardResponseDto?> BlockCardAsync(string tokenId, int codeBlock)
+    {
+        await PrepareAuthenticatedClientAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/Tarjetas/blockcard",
+            new { tokenId, codeBlock });
+
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<BlockCardResponseDto>();
     }
 }
