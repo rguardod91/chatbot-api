@@ -182,3 +182,7 @@ C:\GitHub\Adsi\ADSI.CHATBOT.Solution\obj\Debug\net10.0\ChatBot.Api.genruntimecon
 C:\GitHub\Adsi\ADSI.CHATBOT.Solution\obj\Debug\net10.0\ref\ChatBot.Api.dll
 C:\GitHub\Adsi\ADSI.CHATBOT.Solution\obj\Debug\net10.0\ChatBot.Api.MvcApplicationPartsAssemblyInfo.cs
 C:\GitHub\Adsi\ADSI.CHATBOT.Solution\obj\Debug\net10.0\ChatBot.Api.sourcelink.json
+C:\GitHub\Adsi\ADSI.CHATBOT.Solution\bin\Debug\net10.0\AWSSDK.Core.dll
+C:\GitHub\Adsi\ADSI.CHATBOT.Solution\bin\Debug\net10.0\AWSSDK.Extensions.NETCore.Setup.dll
+C:\GitHub\Adsi\ADSI.CHATBOT.Solution\bin\Debug\net10.0\AWSSDK.SecretsManager.dll
+C:\GitHub\Adsi\ADSI.CHATBOT.Solution\bin\Debug\net10.0\Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll

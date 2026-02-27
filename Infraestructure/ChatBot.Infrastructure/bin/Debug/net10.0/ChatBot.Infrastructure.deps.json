@@ -8,6 +8,8 @@
     ".NETCoreApp,Version=v10.0": {
       "ChatBot.Infrastructure/1.0.0": {
         "dependencies": {
+          "AWSSDK.Extensions.NETCore.Setup": "4.0.3.23",
+          "AWSSDK.SecretsManager": "4.0.4.7",
           "ChatBot.Application": "1.0.0",
           "ChatBot.Domain": "1.0.0",
           "Dapper": "2.1.66",
@@ -38,6 +40,39 @@
           "lib/netstandard2.1/AutoMapper.Extensions.Microsoft.DependencyInjection.dll": {
             "assemblyVersion": "12.0.0.0",
             "fileVersion": "12.0.1.0"
+          }
+        }
+      },
+      "AWSSDK.Core/4.0.3.15": {
+        "runtime": {
+          "lib/net8.0/AWSSDK.Core.dll": {
+            "assemblyVersion": "4.0.0.0",
+            "fileVersion": "4.0.3.15"
+          }
+        }
+      },
+      "AWSSDK.Extensions.NETCore.Setup/4.0.3.23": {
+        "dependencies": {
+          "AWSSDK.Core": "4.0.3.15",
+          "Microsoft.Extensions.Configuration.Abstractions": "10.0.2",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.2",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.2"
+        },
+        "runtime": {
+          "lib/net8.0/AWSSDK.Extensions.NETCore.Setup.dll": {
+            "assemblyVersion": "4.0.0.0",
+            "fileVersion": "4.0.3.23"
+          }
+        }
+      },
+      "AWSSDK.SecretsManager/4.0.4.7": {
+        "dependencies": {
+          "AWSSDK.Core": "4.0.3.15"
+        },
+        "runtime": {
+          "lib/net8.0/AWSSDK.SecretsManager.dll": {
+            "assemblyVersion": "4.0.0.0",
+            "fileVersion": "4.0.4.7"
           }
         }
       },
@@ -1100,6 +1135,27 @@
       "sha512": "sha512-+g/K+Vpe3gGMKGzjslMOdqNlkikScDjWfVvmWTayrDHaG/n2pPmFBMa+jKX1r/h6BDGFdkyRjAuhFE3ykW+r1g==",
       "path": "automapper.extensions.microsoft.dependencyinjection/12.0.1",
       "hashPath": "automapper.extensions.microsoft.dependencyinjection.12.0.1.nupkg.sha512"
+    },
+    "AWSSDK.Core/4.0.3.15": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-1haLKyBjhwV34uafRco2du36ACf2k0pjKqhYj//y4TROSk3OW/faov0/+zGZidUyUuNP06hvUb8U/LgNPKsSeg==",
+      "path": "awssdk.core/4.0.3.15",
+      "hashPath": "awssdk.core.4.0.3.15.nupkg.sha512"
+    },
+    "AWSSDK.Extensions.NETCore.Setup/4.0.3.23": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-jhKlYKWC6j9Jl6O9p7f5++emNjCsXsA9WnJLxmwtKg95JbX+kAsQyNqTsp4Ce+K4KWafzZsoZEewXwaiy26GOA==",
+      "path": "awssdk.extensions.netcore.setup/4.0.3.23",
+      "hashPath": "awssdk.extensions.netcore.setup.4.0.3.23.nupkg.sha512"
+    },
+    "AWSSDK.SecretsManager/4.0.4.7": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-kLcNZ5sovqlhF1ffQNCISpEC0j+W74A468xZQoAP426qWc0c7L0eX1Q/4sp8im/QfZaKVehdo+kRe8LkyzPwCQ==",
+      "path": "awssdk.secretsmanager/4.0.4.7",
+      "hashPath": "awssdk.secretsmanager.4.0.4.7.nupkg.sha512"
     },
     "Azure.Core/1.47.1": {
       "type": "package",

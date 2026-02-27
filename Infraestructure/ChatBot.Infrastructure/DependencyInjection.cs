@@ -1,4 +1,6 @@
-﻿using ChatBot.Application.Interfaces.External;
+﻿using Amazon.SecretsManager;
+using ChatBot.Application.Configuration;
+using ChatBot.Application.Interfaces.External;
 using ChatBot.Application.Interfaces.Persistence;
 using ChatBot.Application.Interfaces.Services;
 using ChatBot.Infrastructure.ExternalServices.Base;
@@ -13,7 +15,6 @@ using ChatBot.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using ConversationStateService = ChatBot.Infrastructure.ExternalServices.Services.ConversationStateService;
 
 namespace ChatBot.Infrastructure
 {
@@ -23,6 +24,21 @@ namespace ChatBot.Infrastructure
             this IServiceCollection services,
             IConfiguration configuration)
         {
+            // ========================
+            // AWS CONFIGURATION
+            // ========================
+
+            services.Configure<AwsSettings>(
+                configuration.GetSection("AWS"));
+
+            services.AddDefaultAWSOptions(configuration.GetAWSOptions());
+            services.AddAWSService<IAmazonSecretsManager>();
+            services.AddScoped<ISecretsManagerService, SecretsManagerService>();
+
+            // ========================
+            // DATABASE
+            // ========================
+
             services.AddDbContext<TranxaDbContext>(options =>
                 options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
@@ -30,12 +46,15 @@ namespace ChatBot.Infrastructure
 
             services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
             services.AddScoped<IUnitOfWork, UnitOfWork>();
-
             services.AddScoped<ITranxaSessionRepository, TranxaSessionRepository>();
+            services.AddScoped<ITranxaAuditLogRepository, TranxaAuditLogRepository>();
+
+            // ========================
+            // SERVICES
+            // ========================
 
             services.AddScoped<ISessionManager, SessionManager>();
-            services.AddScoped<IConversationStateService, ConversationStateService>();
-
+            services.AddScoped<IConversationStateService, ExternalServices.Services.ConversationStateService>();
             services.AddScoped<IBotConversationEngine, BotConversationEngine>();
 
             services.AddScoped(typeof(IAppLogger<>), typeof(AppLogger<>));
@@ -56,12 +75,7 @@ namespace ChatBot.Infrastructure
             services.AddHttpClient<IWhatsAppService, WhatsAppService>();
             services.AddHttpClient<ITelegramService, TelegramService>();
 
-
-            services.AddScoped<ITranxaAuditLogRepository, TranxaAuditLogRepository>();
-
-
             return services;
         }
-
     }
 }
