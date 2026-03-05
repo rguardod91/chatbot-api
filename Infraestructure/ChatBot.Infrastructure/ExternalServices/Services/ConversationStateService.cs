@@ -21,38 +21,99 @@ namespace ChatBot.Infrastructure.ExternalServices.Services
 
         public async Task<ConversationStep> GetCurrentStepAsync(Guid sessionId)
         {
-            var state = (await _sessionStateRepository.FindAsync(x => x.SessionId == sessionId))
-                .OrderByDescending(x => x.UpdatedAt)
-                .FirstOrDefault();
+            Console.WriteLine("===============================================");
+            Console.WriteLine("[CONVERSACION] Consultando estado actual");
+            Console.WriteLine($"[CONVERSACION] SessionId: {sessionId}");
 
-            return state?.CurrentStep ?? ConversationStep.Start;
+            try
+            {
+                var state = (await _sessionStateRepository.FindAsync(x => x.SessionId == sessionId))
+                    .OrderByDescending(x => x.UpdatedAt)
+                    .FirstOrDefault();
+
+                var step = state?.CurrentStep ?? ConversationStep.Start;
+
+                Console.WriteLine($"[CONVERSACION] Paso actual: {step}");
+
+                return step;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[CONVERSACION] ERROR consultando estado");
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+                throw;
+            }
         }
 
         public async Task SetStepAsync(Guid sessionId, ConversationStep step, object? tempData = null)
         {
-            var state = new TranxaSessionState
-            {
-                Id = Guid.NewGuid(),
-                SessionId = sessionId,
-                CurrentStep = step,
-                TempData = tempData != null ? JsonSerializer.Serialize(tempData) : null,
-                UpdatedAt = DateTime.UtcNow
-            };
+            Console.WriteLine("===============================================");
+            Console.WriteLine("[CONVERSACION] Guardando nuevo estado");
+            Console.WriteLine($"[CONVERSACION] SessionId: {sessionId}");
+            Console.WriteLine($"[CONVERSACION] Nuevo paso: {step}");
 
-            await _sessionStateRepository.AddAsync(state);
-            await _unitOfWork.SaveChangesAsync();
+            try
+            {
+                var serializedTempData = tempData != null
+                    ? JsonSerializer.Serialize(tempData)
+                    : null;
+
+                if (serializedTempData != null)
+                    Console.WriteLine($"[CONVERSACION] TempData: {serializedTempData}");
+
+                var state = new TranxaSessionState
+                {
+                    Id = Guid.NewGuid(),
+                    SessionId = sessionId,
+                    CurrentStep = step,
+                    TempData = serializedTempData,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await _sessionStateRepository.AddAsync(state);
+                await _unitOfWork.SaveChangesAsync();
+
+                Console.WriteLine("[CONVERSACION] Estado guardado correctamente");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[CONVERSACION] ERROR guardando estado");
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+                throw;
+            }
         }
 
         public async Task<T?> GetTempDataAsync<T>(Guid sessionId)
         {
-            var state = (await _sessionStateRepository.FindAsync(x => x.SessionId == sessionId))
-                .OrderByDescending(x => x.UpdatedAt)
-                .FirstOrDefault();
+            Console.WriteLine("===============================================");
+            Console.WriteLine("[CONVERSACION] Recuperando TempData");
+            Console.WriteLine($"[CONVERSACION] SessionId: {sessionId}");
 
-            if (string.IsNullOrWhiteSpace(state?.TempData))
-                return default;
+            try
+            {
+                var state = (await _sessionStateRepository.FindAsync(x => x.SessionId == sessionId))
+                    .OrderByDescending(x => x.UpdatedAt)
+                    .FirstOrDefault();
 
-            return JsonSerializer.Deserialize<T>(state.TempData);
+                if (string.IsNullOrWhiteSpace(state?.TempData))
+                {
+                    Console.WriteLine("[CONVERSACION] No hay TempData almacenado");
+                    return default;
+                }
+
+                Console.WriteLine($"[CONVERSACION] TempData encontrado: {state.TempData}");
+
+                return JsonSerializer.Deserialize<T>(state.TempData);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[CONVERSACION] ERROR recuperando TempData");
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+                throw;
+            }
         }
     }
 }

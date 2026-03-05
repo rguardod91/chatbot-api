@@ -18,33 +18,78 @@ namespace ChatBot.Infrastructure.ExternalServices.WhatsApp
 
         public async Task SendTextMessageAsync(string phoneNumberId, string to, string message)
         {
-            var token = _config["WhatsApp:AccessToken"];
+            Console.WriteLine("===============================================");
+            Console.WriteLine("[WHATSAPP] Iniciando envío de mensaje");
+            Console.WriteLine($"[WHATSAPP] Destinatario: {to}");
+            Console.WriteLine($"[WHATSAPP] PhoneNumberId: {phoneNumberId}");
+            Console.WriteLine($"[WHATSAPP] Mensaje: {message}");
+            Console.WriteLine($"[WHATSAPP] Timestamp: {DateTime.UtcNow}");
 
-            var request = new HttpRequestMessage(
-                HttpMethod.Post,
-                $"https://graph.facebook.com/v22.0/{phoneNumberId}/messages");
-
-            request.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", token);
-
-            var body = new
+            try
             {
-                messaging_product = "whatsapp",
-                to = to,
-                text = new { body = message }
-            };
+                var token = _config["WhatsApp:AccessToken"];
 
-            request.Content = new StringContent(
-                JsonSerializer.Serialize(body),
-                Encoding.UTF8,
-                "application/json");
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Console.WriteLine("[WHATSAPP] ERROR: El AccessToken no está configurado.");
+                    throw new Exception("AccessToken de WhatsApp no configurado.");
+                }
 
-            var response = await _httpClient.SendAsync(request);
-            var responseBody = await response.Content.ReadAsStringAsync();
+                var url = $"https://graph.facebook.com/v18.0/{phoneNumberId}/messages";
 
-            Console.WriteLine($"WhatsApp API response: {responseBody}");
+                Console.WriteLine($"[WHATSAPP] URL destino: {url}");
 
-            response.EnsureSuccessStatusCode();
+                var request = new HttpRequestMessage(HttpMethod.Post, url);
+
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", token);
+
+                var body = new
+                {
+                    messaging_product = "whatsapp",
+                    to = to,
+                    text = new { body = message }
+                };
+
+                var jsonBody = JsonSerializer.Serialize(body);
+
+                Console.WriteLine($"[WHATSAPP] Payload enviado: {jsonBody}");
+
+                request.Content = new StringContent(
+                    jsonBody,
+                    Encoding.UTF8,
+                    "application/json");
+
+                Console.WriteLine("[WHATSAPP] Enviando solicitud HTTP a Meta Graph API...");
+
+                var start = DateTime.UtcNow;
+
+                var response = await _httpClient.SendAsync(request);
+
+                var duration = DateTime.UtcNow - start;
+
+                Console.WriteLine($"[WHATSAPP] Tiempo de respuesta: {duration.TotalMilliseconds} ms");
+
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                Console.WriteLine($"[WHATSAPP] Código HTTP: {(int)response.StatusCode}");
+                Console.WriteLine($"[WHATSAPP] Respuesta API: {responseBody}");
+
+                response.EnsureSuccessStatusCode();
+
+                Console.WriteLine("[WHATSAPP] Mensaje enviado correctamente.");
+                Console.WriteLine("===============================================");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("===============================================");
+                Console.WriteLine("[WHATSAPP] ERROR al enviar mensaje");
+                Console.WriteLine($"[WHATSAPP] Mensaje de error: {ex.Message}");
+                Console.WriteLine($"[WHATSAPP] StackTrace: {ex.StackTrace}");
+                Console.WriteLine("===============================================");
+
+                throw;
+            }
         }
     }
 }

@@ -18,22 +18,52 @@ public class TranxaService : ITranxaService
 
     private async Task PrepareAuthenticatedClientAsync()
     {
-        _client.DefaultRequestHeaders.Authorization = null;
+        Console.WriteLine("===============================================");
+        Console.WriteLine("[TRANXA] Preparando cliente autenticado");
 
-        var token = await _tokenService.GetTokenAsync();
+        try
+        {
+            _client.DefaultRequestHeaders.Authorization = null;
 
-        _client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", token);
+            var token = await _tokenService.GetTokenAsync();
+
+            Console.WriteLine("[TRANXA] Token obtenido correctamente");
+
+            _client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[TRANXA] ERROR obteniendo token");
+            Console.WriteLine(ex.Message);
+            Console.WriteLine(ex.StackTrace);
+            throw;
+        }
     }
 
     // ---------- OTP GENERATION ----------
     public async Task<OtpGenerationResponseDto?> GenerateOtpAsync(string username)
     {
+        Console.WriteLine("===============================================");
+        Console.WriteLine("[TRANXA] Generando OTP");
+        Console.WriteLine($"[TRANXA] Usuario: {username}");
+
         await PrepareAuthenticatedClientAsync();
+
+        var start = DateTime.UtcNow;
 
         var response = await _client.PostAsJsonAsync(
             "/api/Clientes/sendotpgenerated",
             new { username });
+
+        var duration = DateTime.UtcNow - start;
+
+        Console.WriteLine($"[TRANXA] Tiempo respuesta OTP: {duration.TotalMilliseconds} ms");
+        Console.WriteLine($"[TRANXA] Código HTTP: {(int)response.StatusCode}");
+
+        var body = await response.Content.ReadAsStringAsync();
+
+        Console.WriteLine($"[TRANXA] Respuesta API: {body}");
 
         response.EnsureSuccessStatusCode();
 
@@ -43,6 +73,10 @@ public class TranxaService : ITranxaService
     // ---------- OTP VALIDATION ----------
     public async Task<OtpValidationResponseDto?> ValidateOtpAsync(string username, string userOtp)
     {
+        Console.WriteLine("===============================================");
+        Console.WriteLine("[TRANXA] Validando OTP");
+        Console.WriteLine($"[TRANXA] Usuario: {username}");
+
         await PrepareAuthenticatedClientAsync();
 
         var body = new
@@ -51,19 +85,36 @@ public class TranxaService : ITranxaService
             userOtp = userOtp
         };
 
+        Console.WriteLine($"[TRANXA] Payload enviado: {System.Text.Json.JsonSerializer.Serialize(body)}");
+
+        var start = DateTime.UtcNow;
+
         var response = await _client.PostAsJsonAsync(
             "/api/Clientes/validateotp",
             body);
+
+        var duration = DateTime.UtcNow - start;
+
+        Console.WriteLine($"[TRANXA] Tiempo respuesta validación OTP: {duration.TotalMilliseconds} ms");
+        Console.WriteLine($"[TRANXA] Código HTTP: {(int)response.StatusCode}");
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        Console.WriteLine($"[TRANXA] Respuesta API: {responseBody}");
 
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<OtpValidationResponseDto>();
     }
 
-
     // ---------- PRODUCTS ----------
     public async Task<UltraRedResponseDto?> GetCustomerProductsAsync(string documentNumber, string docType)
     {
+        Console.WriteLine("===============================================");
+        Console.WriteLine("[TRANXA] Consultando productos del cliente");
+        Console.WriteLine($"[TRANXA] Documento: {documentNumber}");
+        Console.WriteLine($"[TRANXA] Tipo documento: {docType}");
+
         await PrepareAuthenticatedClientAsync();
 
         var body = new
@@ -73,28 +124,61 @@ public class TranxaService : ITranxaService
             idClient = (string?)null
         };
 
+        Console.WriteLine($"[TRANXA] Payload enviado: {System.Text.Json.JsonSerializer.Serialize(body)}");
+
+        var start = DateTime.UtcNow;
+
         var response = await _client.PostAsJsonAsync(
             "/api/Tarjetas/ultraredCustTrans",
             body);
 
+        var duration = DateTime.UtcNow - start;
+
+        Console.WriteLine($"[TRANXA] Tiempo respuesta productos: {duration.TotalMilliseconds} ms");
+        Console.WriteLine($"[TRANXA] Código HTTP: {(int)response.StatusCode}");
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        Console.WriteLine($"[TRANXA] Respuesta API: {responseBody}");
+
         if (!response.IsSuccessStatusCode)
         {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new Exception($"UltraRed error: {response.StatusCode} - {error}");
+            Console.WriteLine("[TRANXA] ERROR en consulta de productos");
+
+            throw new Exception($"UltraRed error: {response.StatusCode} - {responseBody}");
         }
 
         return await response.Content.ReadFromJsonAsync<UltraRedResponseDto>();
     }
 
-
     // ---------- BLOCK CARD ----------
     public async Task<BlockCardResponseDto?> BlockCardAsync(string tokenId, int codeBlock)
     {
+        Console.WriteLine("===============================================");
+        Console.WriteLine("[TRANXA] Bloqueando tarjeta");
+        Console.WriteLine($"[TRANXA] TokenId: {tokenId}");
+        Console.WriteLine($"[TRANXA] Código bloqueo: {codeBlock}");
+
         await PrepareAuthenticatedClientAsync();
+
+        var body = new { tokenId, codeBlock };
+
+        Console.WriteLine($"[TRANXA] Payload enviado: {System.Text.Json.JsonSerializer.Serialize(body)}");
+
+        var start = DateTime.UtcNow;
 
         var response = await _client.PostAsJsonAsync(
             "/api/Tarjetas/blockcard",
-            new { tokenId, codeBlock });
+            body);
+
+        var duration = DateTime.UtcNow - start;
+
+        Console.WriteLine($"[TRANXA] Tiempo respuesta bloqueo: {duration.TotalMilliseconds} ms");
+        Console.WriteLine($"[TRANXA] Código HTTP: {(int)response.StatusCode}");
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        Console.WriteLine($"[TRANXA] Respuesta API: {responseBody}");
 
         response.EnsureSuccessStatusCode();
 

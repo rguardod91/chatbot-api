@@ -1,6 +1,7 @@
 using Amazon.SecretsManager;
 using ChatBot.Application;
 using ChatBot.Application.Configuration;
+using ChatBot.Application.Configurations;
 using ChatBot.Application.Interfaces.External;
 using ChatBot.Infrastructure;
 using ChatBot.Infrastructure.Services;
