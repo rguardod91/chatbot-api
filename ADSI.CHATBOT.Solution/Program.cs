@@ -1,11 +1,8 @@
 using Amazon.SecretsManager;
-using ChatBot.Api.HealthChecks;
 using ChatBot.Application;
 using ChatBot.Application.Configuration;
-using ChatBot.Application.Configurations;
 using ChatBot.Application.Interfaces.External;
 using ChatBot.Infrastructure;
-using ChatBot.Infrastructure.Persistence.Context;
 using ChatBot.Infrastructure.Services;
 using System.Text.Json;
 
@@ -34,7 +31,6 @@ if (awsSettings?.UseSecretsManager == true)
         .GetRequiredService<ISecretsManagerService>();
 
     var secretJson = await secretService.GetSecretAsync();
-
     var secretConfig = JsonSerializer.Deserialize<AwsSecretsConfig>(secretJson);
 
     configuration["ConnectionStrings:DefaultConnection"] =
@@ -52,8 +48,13 @@ if (awsSettings?.UseSecretsManager == true)
 }
 
 // =============================
-// Controllers
+// Core Services
 // =============================
+
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(configuration);
+
+builder.Services.AddMemoryCache();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -62,23 +63,17 @@ builder.Services.AddControllers()
     });
 
 // =============================
-// Health Checks
+// Health Check (BÁSICO SIN DB)
 // =============================
 
-builder.Services.AddHealthChecks()
-    .AddDbContextCheck<TranxaDbContext>();
+builder.Services.AddHealthChecks();
 
 // =============================
-// Swagger (SOLO DEVELOPMENT)
+// Swagger SOLO Development
 // =============================
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-builder.Services.AddMemoryCache();
-
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(configuration);
 
 builder.Services.AddCors(options =>
 {
@@ -88,11 +83,10 @@ builder.Services.AddCors(options =>
                         .AllowAnyHeader());
 });
 
-builder.Services.AddCustomHealthChecks();
 var app = builder.Build();
 
 // =============================
-// Swagger SOLO en Development
+// Swagger solo en Development
 // =============================
 
 if (app.Environment.IsDevelopment())

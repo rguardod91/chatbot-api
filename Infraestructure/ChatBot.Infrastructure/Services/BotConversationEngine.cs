@@ -45,7 +45,7 @@ public class BotConversationEngine : IBotConversationEngine
 
         message = message?.Trim() ?? string.Empty;
 
-        // 🔥 Validación robusta de timeout
+        //  Validación robusta de timeout
         if (ctx.Step != ConversationStep.Start &&
             DateTime.UtcNow.Subtract(ctx.LastActivity) > SessionTimeout)
         {
@@ -81,7 +81,7 @@ public class BotConversationEngine : IBotConversationEngine
     private string ShowWelcome(SessionContext ctx)
     {
         ctx.Step = ConversationStep.WaitingForDocumentType;
-        return "🏦 Banca Digital UltraRedInternacional\nSelecciona tipo de documento:\n1️⃣ Cédula\n2️⃣ Pasaporte";
+        return "🏦 Banca Digital WOPA\nSelecciona tipo de documento:\n1️⃣ Cédula\n2️⃣ Pasaporte";
     }
 
     private string HandleDocType(SessionContext ctx, string input)
@@ -114,8 +114,8 @@ public class BotConversationEngine : IBotConversationEngine
             return "❌ No se pudo obtener el correo del cliente.";
         }
 
-        //var otp = await _tranxaService.GenerateOtpAsync(ctx.UserEmail);
-        var otp = await _tranxaService.GenerateOtpAsync("rguardod14@gmail.com");
+        var otp = await _tranxaService.GenerateOtpAsync(ctx.UserEmail);
+        //var otp = await _tranxaService.GenerateOtpAsync("rguardod14@gmail.com");
 
         if (otp == null || otp.OtpStatus != "Approved")
         {
@@ -129,8 +129,8 @@ public class BotConversationEngine : IBotConversationEngine
 
     private async Task<string> HandleOtpValidation(SessionContext ctx, string otp)
     {
-        //var validation = await _tranxaService.ValidateOtpAsync(ctx.UserEmail!, otp);
-        var validation = await _tranxaService.ValidateOtpAsync("rguardod14@gmail.com", otp);
+        var validation = await _tranxaService.ValidateOtpAsync(ctx.UserEmail!, otp);
+        //var validation = await _tranxaService.ValidateOtpAsync("rguardod14@gmail.com", otp);
 
         if (validation == null || validation.Result != "Approved")
             return $"❌ {validation?.DeclineReason ?? "OTP inválido"}";
@@ -211,7 +211,7 @@ public class BotConversationEngine : IBotConversationEngine
 
         sb.AppendLine("📊 Últimos movimientos\n");
 
-        sb.AppendLine("```");
+        sb.AppendLine("────────────────────────────────────────────────────");
         sb.AppendLine("Fecha   Descripción                 Monto");
         sb.AppendLine("──────  ──────────────────────────  ───────");
 
@@ -232,7 +232,7 @@ public class BotConversationEngine : IBotConversationEngine
             sb.AppendLine($"{date.PadRight(6)}  {description}  {formattedAmount.PadLeft(8)}");
         }
 
-        sb.AppendLine("```");
+        sb.AppendLine("────────────────────────────────────────────────────");
 
         return sb.ToString();
     }
