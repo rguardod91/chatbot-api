@@ -206,17 +206,11 @@ public class BotConversationEngine : IBotConversationEngine
         return ctx.Step switch
         {
             ConversationStep.Start => ShowWelcome(ctx),
-
             ConversationStep.WaitingForDocumentType => HandleDocType(ctx, message),
-
             ConversationStep.WaitingForDocumentNumber => await HandleDocNumber(ctx, message),
-
             ConversationStep.ValidatingUser => await HandleOtpValidation(ctx, message),
-
             ConversationStep.SelectProduct => HandleProductSelection(ctx, message),
-
             ConversationStep.AuthenticatedMenu => await HandleAuthenticatedMenu(userId, ctx, message, user, session),
-
             _ => "Escribe hola para comenzar."
         };
     }
@@ -274,6 +268,8 @@ public class BotConversationEngine : IBotConversationEngine
 
         ctx.DocumentNumber = docNumber;
 
+        Console.WriteLine($"[BOT] Consultando productos cliente {docNumber}");
+
         var response = await _tranxaService.GetCustomerProductsAsync(ctx.DocumentNumber, ctx.DocumentType!);
 
         if (response == null || response.Cards == null || !response.Cards.Any())
@@ -296,7 +292,7 @@ public class BotConversationEngine : IBotConversationEngine
         ctx.Step = ConversationStep.ValidatingUser;
         ctx.OtpAttempts = 0;
 
-        return "🔐 Hemos enviado un código OTP a tu correo registrado. Por favor valida tu bandeja de entrada.\n\nCuando lo recibas ingresa el código:";
+        return "🔐 Hemos enviado un código OTP a tu correo registrado.\n\nCuando lo recibas ingresa el código:";
     }
 
     private async Task<string> HandleOtpValidation(SessionContext ctx, string otp)
@@ -313,8 +309,7 @@ public class BotConversationEngine : IBotConversationEngine
             if (ctx.OtpAttempts >= MAX_ATTEMPTS)
             {
                 ctx.OtpAttempts = 0;
-
-                var newOtp = await _tranxaService.GenerateOtpAsync(ctx.UserEmail!);
+                await _tranxaService.GenerateOtpAsync(ctx.UserEmail!);
 
                 return "⚠️ Ingresaste incorrectamente el OTP 3 veces.\n\nTe enviamos un nuevo código.\n\nIngresa el nuevo OTP:";
             }
@@ -358,11 +353,22 @@ public class BotConversationEngine : IBotConversationEngine
                 return $"💰 Saldo disponible\n{card.CurrBalance} {card.Currency}\n\n{GetMenu()}";
 
             case 2:
-                return FormatMovementsTable(card) + "\n\n" + GetMenu();
+
+                Console.WriteLine("[BOT] Consultando movimientos...");
+
+                return "⏳ Consultando últimos movimientos...\n\n"
+                       + FormatMovementsTable(card)
+                       + "\n\n"
+                       + GetMenu();
 
             case 3:
 
-                var result = await _tranxaService.BlockCardAsync(card.TokenId, 1);
+                Console.WriteLine($"[BOT] Iniciando bloqueo tarjeta {card.TokenId}");
+
+                var result = await _tranxaService.BlockCardAsync(card.TokenId, 2);
+
+                var estado = TranslateResult(result?.Result);
+                var approvalCode = result?.ApprovalCode ?? "N/A";
 
                 await _auditRepository.AddAsync(
                     new TranxaAuditEvent
@@ -372,13 +378,15 @@ public class BotConversationEngine : IBotConversationEngine
                         EventType = "BLOCK_CARD",
                         ExternalReference = card.TokenId,
                         Result = result?.Result ?? "ERROR",
-                        Details = "Card block requested",
+                        Details = $"ApprovalCode={approvalCode}",
                         CreatedAt = DateTime.UtcNow
                     });
 
                 await _unitOfWork.SaveChangesAsync();
 
-                return $"🔒 Resultado bloqueo: {result?.Result}\n\n" + GetMenu();
+                Console.WriteLine($"[BOT] Resultado bloqueo={estado} ApprovalCode={approvalCode}");
+
+                return $"🔒 Resultado del bloqueo\n\nEstado: {estado}\nCódigo de aprobación: {approvalCode}\n\n{GetMenu()}";
 
             case 4:
                 ctx.Step = ConversationStep.SelectProduct;
@@ -391,6 +399,20 @@ public class BotConversationEngine : IBotConversationEngine
             default:
                 return "❌ Opción inválida.\n\n" + GetMenu();
         }
+    }
+
+    //---------------------------------------
+    // HELPERS
+    //---------------------------------------
+
+    private static string TranslateResult(string? result)
+    {
+        return result switch
+        {
+            "Approved" => "Aprobado",
+            "Declined" => "Rechazado",
+            _ => result ?? "Desconocido"
+        };
     }
 
     //---------------------------------------
