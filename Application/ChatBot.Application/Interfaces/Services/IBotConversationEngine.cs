@@ -2,6 +2,6 @@
 {
     public interface IBotConversationEngine
     {
-        Task<string> ProcessMessageAsync(string phoneNumber, string messageText);
+        Task<List<string>> ProcessMessageAsync(string userId, string message);
     }
 }

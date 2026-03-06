@@ -2,8 +2,8 @@
 
 namespace ChatBot.Application.Interfaces.Persistence
 {
-    public interface ITranxaAuditLogRepository
+    public interface IExternalServiceLogRepository
     {
-        Task AddAsync(TranxaAuditLog log);
+        Task AddAsync(TranxaExternalServiceLog log);
     }
 }

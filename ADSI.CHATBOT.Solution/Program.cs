@@ -4,11 +4,13 @@ using ChatBot.Application.Configuration;
 using ChatBot.Application.Configurations;
 using ChatBot.Application.Interfaces.External;
 using ChatBot.Infrastructure;
+using ChatBot.Infrastructure.Persistence.Context;
 using ChatBot.Infrastructure.Services;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
+var environment = builder.Environment;
 
 // =============================
 // AWS + Secrets
@@ -23,8 +25,10 @@ builder.Services.AddScoped<ISecretsManagerService, SecretsManagerService>();
 
 var awsSettings = configuration.GetSection("AWS").Get<AwsSettings>();
 
-if (awsSettings?.UseSecretsManager == true)
+if (!environment.IsDevelopment() && awsSettings?.UseSecretsManager == true)
 {
+    Console.WriteLine("🌐 AWS environment detected. Loading secrets...");
+
     using var tempProvider = builder.Services.BuildServiceProvider();
     using var scope = tempProvider.CreateScope();
 
@@ -47,6 +51,15 @@ if (awsSettings?.UseSecretsManager == true)
     configuration["WhatsApp:PhoneNumberId"] = secretConfig.WhatsApp.PhoneNumberId;
     configuration["WhatsApp:VerifyToken"] = secretConfig.WhatsApp.VerifyToken;
 }
+else
+{
+    Console.WriteLine("💻 Local environment detected.");
+}
+
+// 🔎 LOG DEL CONNECTION STRING
+Console.WriteLine("===== DATABASE CONNECTION STRING =====");
+Console.WriteLine(configuration.GetConnectionString("DefaultConnection"));
+Console.WriteLine("=======================================");
 
 // =============================
 // Core Services
@@ -63,15 +76,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy = null;
     });
 
-// =============================
-// Health Check (BÁSICO SIN DB)
-// =============================
-
 builder.Services.AddHealthChecks();
-
-// =============================
-// Swagger SOLO Development
-// =============================
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -86,30 +91,31 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// =============================
-// Swagger solo en Development
-// =============================
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// =============================
-// Middleware
-// =============================
+// 🔎 TEST DE CONEXIÓN A BASE
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<TranxaDbContext>();
+
+    Console.WriteLine("===== TESTING DATABASE CONNECTION =====");
+
+    var canConnect = context.Database.CanConnect();
+
+    Console.WriteLine($"Database connection OK: {canConnect}");
+
+    Console.WriteLine("=======================================");
+}
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 app.UseAuthorization();
 
 app.MapControllers();
-
-// =============================
-// Health Endpoint
-// =============================
-
 app.MapHealthChecks("/health");
 
 app.Run();

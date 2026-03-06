@@ -15,6 +15,7 @@ using ChatBot.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace ChatBot.Infrastructure
 {
@@ -24,10 +25,6 @@ namespace ChatBot.Infrastructure
             this IServiceCollection services,
             IConfiguration configuration)
         {
-            // ========================
-            // AWS CONFIGURATION
-            // ========================
-
             services.Configure<AwsSettings>(
                 configuration.GetSection("AWS"));
 
@@ -39,15 +36,21 @@ namespace ChatBot.Infrastructure
             // DATABASE
             // ========================
 
-            services.AddDbContext<TranxaDbContext>(options =>
-                options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            services.AddDbContext<TranxaDbContext>((sp, options) =>
+            {
+                var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+
+                options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"))
+                       .UseLoggerFactory(loggerFactory)
+                       .EnableDetailedErrors()
+                       .EnableSensitiveDataLogging();
+            });
 
             services.AddScoped<DbContext>(sp => sp.GetRequiredService<TranxaDbContext>());
 
             services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<ITranxaSessionRepository, TranxaSessionRepository>();
-            services.AddScoped<ITranxaAuditLogRepository, TranxaAuditLogRepository>();
 
             // ========================
             // SERVICES
@@ -56,6 +59,19 @@ namespace ChatBot.Infrastructure
             services.AddScoped<ISessionManager, SessionManager>();
             services.AddScoped<IConversationStateService, ExternalServices.Services.ConversationStateService>();
             services.AddScoped<IBotConversationEngine, BotConversationEngine>();
+            services.AddScoped<IUserRepository, UserRepository>();
+
+            services.AddScoped<ISessionRepository, SessionRepository>();
+
+            services.AddScoped<IMessageRepository, MessageRepository>();
+
+            services.AddScoped<ISessionStateRepository, SessionStateRepository>();
+
+            services.AddScoped<IAuditEventRepository, AuditEventRepository>();
+
+            services.AddScoped<IExternalServiceLogRepository, ExternalServiceLogRepository>();
+
+            services.AddScoped<ISystemLogRepository, SystemLogRepository>();
 
             services.AddScoped(typeof(IAppLogger<>), typeof(AppLogger<>));
 

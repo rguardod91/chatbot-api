@@ -5,7 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 public class SessionManager : ISessionManager
 {
     private readonly IMemoryCache _cache;
-    private static readonly TimeSpan SessionTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan SessionTimeout = TimeSpan.FromMinutes(1);
 
     public SessionManager(IMemoryCache cache)
     {

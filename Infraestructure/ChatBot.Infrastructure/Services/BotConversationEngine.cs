@@ -5,7 +5,9 @@ using ChatBot.Application.Interfaces.Persistence;
 using ChatBot.Application.Interfaces.Services;
 using ChatBot.Domain.Entities;
 using ChatBot.Domain.Enums;
+using ChatBot.Domain.ValueObjects;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ChatBot.Infrastructure.Services;
 
@@ -13,30 +15,109 @@ public class BotConversationEngine : IBotConversationEngine
 {
     private readonly ISessionManager _sessionManager;
     private readonly ITranxaService _tranxaService;
-    private readonly ITranxaAuditLogRepository _auditRepo;
 
+    private readonly IUserRepository _userRepository;
+    private readonly ISessionRepository _sessionRepository;
+    private readonly IMessageRepository _messageRepository;
+    private readonly IAuditEventRepository _auditRepository;
+
+    private readonly IUnitOfWork _unitOfWork;
+
+    private const int MAX_ATTEMPTS = 3;
     private static readonly TimeSpan SessionTimeout = TimeSpan.FromMinutes(5);
 
     public BotConversationEngine(
         ISessionManager sessionManager,
         ITranxaService tranxaService,
-        ITranxaAuditLogRepository auditRepo)
+        IUserRepository userRepository,
+        ISessionRepository sessionRepository,
+        IMessageRepository messageRepository,
+        IAuditEventRepository auditRepository,
+        IUnitOfWork unitOfWork)
     {
         _sessionManager = sessionManager;
         _tranxaService = tranxaService;
-        _auditRepo = auditRepo;
+
+        _userRepository = userRepository;
+        _sessionRepository = sessionRepository;
+        _messageRepository = messageRepository;
+        _auditRepository = auditRepository;
+
+        _unitOfWork = unitOfWork;
     }
 
-    public async Task<string> ProcessMessageAsync(string userId, string message)
+    public async Task<List<string>> ProcessMessageAsync(string userId, string message)
     {
+        var responses = new List<string>();
+
         Console.WriteLine($"[BOT] Incoming message | user={userId} | message={message}");
+
+        //---------------------------------------
+        // USER
+        //---------------------------------------
+
+        var user = await _userRepository.GetByWhatsAppAsync(userId);
+
+        if (user == null)
+        {
+            user = new TranxaUser
+            {
+                WhatsAppNumber = new PhoneNumber(userId),
+                FirstContactAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            await _userRepository.AddAsync(user);
+        }
+
+        //---------------------------------------
+        // SESSION
+        //---------------------------------------
+
+        var session = await _sessionRepository.GetActiveSessionAsync(user.Id);
+
+        if (session == null)
+        {
+            session = new TranxaSession
+            {
+                UserId = user.Id,
+                StartedAt = DateTime.UtcNow,
+                LastActivityAt = DateTime.UtcNow,
+                Status = SessionStatus.Active
+            };
+
+            await _sessionRepository.AddAsync(session);
+        }
+        else
+        {
+            session.LastActivityAt = DateTime.UtcNow;
+            await _sessionRepository.UpdateAsync(session);
+        }
+
+        //---------------------------------------
+        // SAVE MESSAGE IN
+        //---------------------------------------
+
+        await _messageRepository.AddAsync(
+            new TranxaMessage
+            {
+                SessionId = session.Id,
+                Direction = MessageDirection.In,
+                MessageType = "Text",
+                Content = message,
+                CreatedAt = DateTime.UtcNow
+            });
+
+        await _unitOfWork.SaveChangesAsync();
+
+        //---------------------------------------
+        // SESSION CONTEXT
+        //---------------------------------------
 
         var ctx = await _sessionManager.GetSessionAsync(userId);
 
         if (ctx == null)
         {
-            Console.WriteLine($"[BOT] No session found. Creating new session for user={userId}");
-
             ctx = new SessionContext
             {
                 Step = ConversationStep.Start,
@@ -46,138 +127,200 @@ public class BotConversationEngine : IBotConversationEngine
             await _sessionManager.SaveSessionAsync(userId, ctx);
         }
 
-        message = message?.Trim() ?? string.Empty;
+        //---------------------------------------
+        // SESSION TIMEOUT
+        //---------------------------------------
 
-        if (ctx.Step != ConversationStep.Start &&
-            DateTime.UtcNow.Subtract(ctx.LastActivity) > SessionTimeout)
+        if (DateTime.UtcNow - ctx.LastActivity > SessionTimeout)
         {
-            Console.WriteLine($"[BOT] Session expired | user={userId}");
+            Console.WriteLine("[BOT] Session timeout");
 
-            ctx = new SessionContext
-            {
-                Step = ConversationStep.Start,
-                LastActivity = DateTime.UtcNow
-            };
+            ctx.Step = ConversationStep.Start;
+            ctx.StepAttempts = 0;
+            ctx.OtpAttempts = 0;
+
+            responses.Add("⏳ Tu sesión expiró por inactividad.\n\nEscribe *hola* para comenzar nuevamente.");
 
             await _sessionManager.SaveSessionAsync(userId, ctx);
-
-            return "⏳ Tu sesión ha expirado por inactividad (5 minutos).\n\nEscribe *hola* para iniciar nuevamente.";
+            return responses;
         }
 
         ctx.LastActivity = DateTime.UtcNow;
 
-        Console.WriteLine($"[BOT] Current step={ctx.Step}");
+        //---------------------------------------
+        // LOOP DETECTION
+        //---------------------------------------
 
-        string response = ctx.Step switch
+        if (ctx.LastMessage == message)
         {
-            ConversationStep.Start => ShowWelcome(ctx),
-            ConversationStep.WaitingForDocumentType => HandleDocType(ctx, message),
-            ConversationStep.WaitingForDocumentNumber => await HandleDocNumber(ctx, message),
-            ConversationStep.ValidatingUser => await HandleOtpValidation(ctx, message),
-            ConversationStep.SelectProduct => HandleProductSelection(ctx, message),
-            ConversationStep.AuthenticatedMenu => await HandleAuthenticatedMenu(userId, ctx, message),
-            _ => "Escribe hola para comenzar."
-        };
+            ctx.LoopCount++;
+
+            if (ctx.LoopCount >= 3)
+            {
+                ctx.Step = ConversationStep.Start;
+                ctx.LoopCount = 0;
+
+                responses.Add("🤖 Parece que estamos repitiendo el mismo mensaje.\n\nVolvamos a comenzar.\n\nEscribe *hola*.");
+                return responses;
+            }
+        }
+        else
+        {
+            ctx.LoopCount = 0;
+        }
+
+        ctx.LastMessage = message;
+
+        //---------------------------------------
+        // MAIN FLOW
+        //---------------------------------------
+
+        responses.Add(await HandleConversation(ctx, message, userId, user, session));
 
         await _sessionManager.SaveSessionAsync(userId, ctx);
 
-        Console.WriteLine($"[BOT] Response generated | user={userId}");
+        //---------------------------------------
+        // SAVE MESSAGE OUT
+        //---------------------------------------
 
-        return response;
+        foreach (var response in responses)
+        {
+            await _messageRepository.AddAsync(
+                new TranxaMessage
+                {
+                    SessionId = session.Id,
+                    Direction = MessageDirection.Out,
+                    MessageType = "Text",
+                    Content = response,
+                    CreatedAt = DateTime.UtcNow
+                });
+        }
+
+        await _unitOfWork.SaveChangesAsync();
+
+        return responses;
     }
+
+    private async Task<string> HandleConversation(SessionContext ctx, string message, string userId, TranxaUser user, TranxaSession session)
+    {
+        return ctx.Step switch
+        {
+            ConversationStep.Start => ShowWelcome(ctx),
+
+            ConversationStep.WaitingForDocumentType => HandleDocType(ctx, message),
+
+            ConversationStep.WaitingForDocumentNumber => await HandleDocNumber(ctx, message),
+
+            ConversationStep.ValidatingUser => await HandleOtpValidation(ctx, message),
+
+            ConversationStep.SelectProduct => HandleProductSelection(ctx, message),
+
+            ConversationStep.AuthenticatedMenu => await HandleAuthenticatedMenu(userId, ctx, message, user, session),
+
+            _ => "Escribe hola para comenzar."
+        };
+    }
+
+    //---------------------------------------
+    // VALIDATION ENGINE
+    //---------------------------------------
+
+    private bool IsNumeric(string value) => value.All(char.IsDigit);
+
+    private bool IsPassport(string value)
+        => Regex.IsMatch(value, "^[A-Za-z0-9]+$");
+
+    //---------------------------------------
+    // STEPS
+    //---------------------------------------
 
     private string ShowWelcome(SessionContext ctx)
     {
-        Console.WriteLine("[BOT] Step=Start → WaitingForDocumentType");
-
         ctx.Step = ConversationStep.WaitingForDocumentType;
+        ctx.StepAttempts = 0;
 
-        return "🏦 Banca Digital WOPA\nSelecciona tipo de documento:\n1️⃣ Cédula\n2️⃣ Pasaporte";
+        return "🏦 Banca Digital WOPA\n\nSelecciona tipo de documento:\n1️⃣ Cédula\n2️⃣ Pasaporte";
     }
 
     private string HandleDocType(SessionContext ctx, string input)
     {
-        Console.WriteLine($"[BOT] HandleDocType input={input}");
+        if (!IsNumeric(input))
+            return "🙈 Ingresaste una letra.\n\nIngresa:\n1️⃣ Cédula\n2️⃣ Pasaporte";
 
-        ctx.DocumentType = input switch { "1" => "DNI", "2" => "PAS", _ => null };
+        ctx.DocumentType = input switch
+        {
+            "1" => "CED",
+            "2" => "PAS",
+            _ => null
+        };
 
         if (ctx.DocumentType == null)
-        {
-            Console.WriteLine("[BOT] Invalid document type selected");
-            return "❌ Opción inválida.";
-        }
+            return "❌ La opción es inválida.\n\nSelecciona:\n1️⃣ Cédula\n2️⃣ Pasaporte";
 
         ctx.Step = ConversationStep.WaitingForDocumentNumber;
 
-        Console.WriteLine($"[BOT] DocumentType selected={ctx.DocumentType}");
-
-        return "✍️ Ingresa tu número de documento:";
+        return ctx.DocumentType == "CED"
+            ? "✍️ Por favor, Ingresa tu número de cédula :"
+            : "✍️ Por favor, Ingresa tu número de pasaporte :";
     }
 
     private async Task<string> HandleDocNumber(SessionContext ctx, string docNumber)
     {
-        Console.WriteLine($"[BOT] Requesting products | doc={docNumber}");
+        if (ctx.DocumentType == "CED" && !IsNumeric(docNumber))
+            return "🙈 La cédula solo debe contener números.";
+
+        if (ctx.DocumentType == "PAS" && !IsPassport(docNumber))
+            return "🙈 El pasaporte solo puede contener letras y números.";
 
         ctx.DocumentNumber = docNumber;
 
         var response = await _tranxaService.GetCustomerProductsAsync(ctx.DocumentNumber, ctx.DocumentType!);
 
-        if (response == null || response.Result != "Approved" || response.Cards == null || !response.Cards.Any())
+        if (response == null || response.Cards == null || !response.Cards.Any())
         {
-            Console.WriteLine("[BOT] No products found for user");
-
             ctx.Step = ConversationStep.Start;
-
-            return "❌ No encontramos productos asociados.";
+            return "❌ No encontramos productos asociados al documento ingresado.";
         }
-
-        Console.WriteLine($"[BOT] Products found count={response.Cards.Count}");
 
         ctx.Cards = response.Cards;
         ctx.UserEmail = response.Person?.Email;
 
-        if (string.IsNullOrWhiteSpace(ctx.UserEmail))
-        {
-            Console.WriteLine("[BOT] Email not found in response");
-
-            ctx.Step = ConversationStep.Start;
-
-            return "❌ No se pudo obtener el correo del cliente.";
-        }
-
-        Console.WriteLine($"[BOT] Generating OTP for email={ctx.UserEmail}");
-
-        var otp = await _tranxaService.GenerateOtpAsync(ctx.UserEmail);
+        var otp = await _tranxaService.GenerateOtpAsync(ctx.UserEmail!);
 
         if (otp == null || otp.OtpStatus != "Approved")
         {
-            Console.WriteLine("[BOT] OTP generation failed");
-
             ctx.Step = ConversationStep.Start;
-
             return "❌ No fue posible generar el OTP.";
         }
 
         ctx.Step = ConversationStep.ValidatingUser;
+        ctx.OtpAttempts = 0;
 
-        Console.WriteLine("[BOT] OTP generated successfully");
-
-        return "🔐 Te enviamos un OTP a tu correo registrado. Ingresa el código para continuar.";
+        return "🔐 Hemos enviado un código OTP a tu correo registrado. Por favor valida tu bandeja de entrada.\n\nCuando lo recibas ingresa el código:";
     }
 
     private async Task<string> HandleOtpValidation(SessionContext ctx, string otp)
     {
-        Console.WriteLine($"[BOT] Validating OTP | email={ctx.UserEmail}");
+        if (!IsNumeric(otp))
+            return "🙈 El OTP solo debe contener números.";
 
         var validation = await _tranxaService.ValidateOtpAsync(ctx.UserEmail!, otp);
 
         if (validation == null || validation.Result != "Approved")
         {
-            Console.WriteLine("[BOT] OTP validation failed");
-            return $"❌ {validation?.DeclineReason ?? "OTP inválido"}";
-        }
+            ctx.OtpAttempts++;
 
-        Console.WriteLine("[BOT] OTP validated successfully");
+            if (ctx.OtpAttempts >= MAX_ATTEMPTS)
+            {
+                ctx.OtpAttempts = 0;
+
+                var newOtp = await _tranxaService.GenerateOtpAsync(ctx.UserEmail!);
+
+                return "⚠️ Ingresaste incorrectamente el OTP 3 veces.\n\nTe enviamos un nuevo código.\n\nIngresa el nuevo OTP:";
+            }
+
+            return $"❌ OTP incorrecto.\nIntentos restantes: {MAX_ATTEMPTS - ctx.OtpAttempts}";
+        }
 
         ctx.Step = ConversationStep.SelectProduct;
 
@@ -186,94 +329,83 @@ public class BotConversationEngine : IBotConversationEngine
 
     private string HandleProductSelection(SessionContext ctx, string input)
     {
-        Console.WriteLine($"[BOT] Product selection input={input}");
+        if (!IsNumeric(input))
+            return "🙈 Ingresa el número del producto.";
 
-        if (!int.TryParse(input, out int index) || index < 1 || index > ctx.Cards.Count)
-        {
-            Console.WriteLine("[BOT] Invalid product selection");
-            return "❌ Selección inválida.";
-        }
+        int index = int.Parse(input);
+
+        if (index < 1 || index > ctx.Cards.Count)
+            return $"❌ Selección inválida.\n\nIngresa un número entre 1 y {ctx.Cards.Count}.";
 
         ctx.SelectedTokenId = ctx.Cards[index - 1].TokenId;
-
-        Console.WriteLine($"[BOT] Product selected tokenId={ctx.SelectedTokenId}");
-
         ctx.Step = ConversationStep.AuthenticatedMenu;
 
         return GetMenu();
     }
 
-    private async Task<string> HandleAuthenticatedMenu(string userId, SessionContext ctx, string input)
+    private async Task<string> HandleAuthenticatedMenu(string userId, SessionContext ctx, string input, TranxaUser user, TranxaSession session)
     {
-        Console.WriteLine($"[BOT] Authenticated menu option={input}");
+        if (!IsNumeric(input))
+            return "🙈 Ingresa un número del menú.\n\n" + GetMenu();
+
+        int option = int.Parse(input);
 
         var card = ctx.Cards.First(c => c.TokenId == ctx.SelectedTokenId);
 
-        switch (input)
+        switch (option)
         {
-            case "1":
-                Console.WriteLine("[BOT] Balance inquiry");
+            case 1:
+                return $"💰 Saldo disponible\n{card.CurrBalance} {card.Currency}\n\n{GetMenu()}";
 
-                return $"💰 Saldo disponible\n{card.CurrBalance} {card.Currency}\n\n" + GetMenu();
-
-            case "2":
-                Console.WriteLine("[BOT] Movement inquiry");
-
+            case 2:
                 return FormatMovementsTable(card) + "\n\n" + GetMenu();
 
-            case "3":
-
-                Console.WriteLine($"[BOT] Blocking card tokenId={card.TokenId}");
+            case 3:
 
                 var result = await _tranxaService.BlockCardAsync(card.TokenId, 1);
 
-                await _auditRepo.AddAsync(new TranxaAuditLog
-                {
-                    UserChannelId = userId,
-                    Action = "BLOCK_CARD",
-                    TokenId = card.TokenId,
-                    Result = result?.Result ?? "ERROR",
-                    CreatedAt = DateTime.UtcNow
-                });
+                await _auditRepository.AddAsync(
+                    new TranxaAuditEvent
+                    {
+                        SessionId = session.Id,
+                        UserId = user.Id,
+                        EventType = "BLOCK_CARD",
+                        ExternalReference = card.TokenId,
+                        Result = result?.Result ?? "ERROR",
+                        Details = "Card block requested",
+                        CreatedAt = DateTime.UtcNow
+                    });
 
-                Console.WriteLine($"[BOT] Block result={result?.Result}");
+                await _unitOfWork.SaveChangesAsync();
 
                 return $"🔒 Resultado bloqueo: {result?.Result}\n\n" + GetMenu();
 
-            case "4":
-
-                Console.WriteLine("[BOT] Changing product");
-
+            case 4:
                 ctx.Step = ConversationStep.SelectProduct;
-
                 return FormatProductsTable(ctx.Cards);
 
-            case "5":
-
-                Console.WriteLine("[BOT] Ending session");
-
+            case 5:
                 ctx.Step = ConversationStep.Start;
-
-                return "👋 Sesión finalizada. Escribe hola para iniciar nuevamente.";
+                return "👋 Sesión finalizada.\n\nEscribe *hola* para iniciar nuevamente.";
 
             default:
-
-                Console.WriteLine("[BOT] Invalid menu option");
-
-                return GetMenu();
+                return "❌ Opción inválida.\n\n" + GetMenu();
         }
     }
+
+    //---------------------------------------
+    // FORMATTERS
+    //---------------------------------------
 
     private static string FormatProductsTable(List<CardDto> cards)
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine("💼 Tus productos disponibles:");
+        sb.AppendLine("💼 Tus productos disponibles:\n");
 
         for (int i = 0; i < cards.Count; i++)
         {
             var c = cards[i];
-
             sb.AppendLine($"{i + 1}️⃣ ****{c.Pan[^4..]} | {c.CurrBalance} {c.Currency}");
         }
 
@@ -289,34 +421,27 @@ public class BotConversationEngine : IBotConversationEngine
 
         var sb = new StringBuilder();
 
-        sb.AppendLine("📊 Últimos movimientos\n");
-
-        sb.AppendLine("────────────────────────────────────────────────────");
-        sb.AppendLine("Fecha   Descripción                 Monto");
-        sb.AppendLine("──────  ──────────────────────────  ───────");
+        sb.AppendLine("📊 *Últimos movimientos*\n");
 
         foreach (var m in card.Movements.Take(5))
         {
             var date = DateTime.Parse(m.MvDate).ToString("dd/MM");
 
-            var description = m.MvDet.Length > 25
-                ? m.MvDet.Substring(0, 25)
-                : m.MvDet.PadRight(25);
-
             decimal amount = decimal.Parse(m.MvAmt);
 
             var formattedAmount = amount >= 0
-                ? $"+${amount:N2}"
-                : $"-${Math.Abs(amount):N2}";
+                ? $"🟢 +${amount:N2}"
+                : $"🔴 -${Math.Abs(amount):N2}";
 
-            sb.AppendLine($"{date.PadRight(6)}  {description}  {formattedAmount.PadLeft(8)}");
+            sb.AppendLine($"📅 {date}");
+            sb.AppendLine($"💳 {m.MvDet}");
+            sb.AppendLine($"💰 {formattedAmount}");
+            sb.AppendLine("\n──────────────\n");
         }
-
-        sb.AppendLine("────────────────────────────────────────────────────");
 
         return sb.ToString();
     }
 
-    private static string GetMenu() =>
-        "¿Qué deseas hacer ahora?\n1️⃣ Consultar saldo\n2️⃣ Ver movimientos\n3️⃣ Bloquear tarjeta\n4️⃣ Cambiar producto\n5️⃣ Salir";
+    private static string GetMenu()
+        => "¿Qué deseas hacer ahora?\n1️⃣ Consultar saldo\n2️⃣ Ver movimientos\n3️⃣ Bloquear tarjeta\n4️⃣ Cambiar producto\n5️⃣ Salir";
 }

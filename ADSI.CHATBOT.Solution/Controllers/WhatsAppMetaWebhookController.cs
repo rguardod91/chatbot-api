@@ -23,7 +23,6 @@ public class WhatsAppMetaWebhookController : ControllerBase
         _config = config;
     }
 
-    // 📩 RECEPCIÓN DE MENSAJES DESDE META
     [HttpPost]
     public async Task<IActionResult> Receive([FromBody] JsonElement payload)
     {
@@ -32,8 +31,6 @@ public class WhatsAppMetaWebhookController : ControllerBase
 
         try
         {
-            Console.WriteLine("Parsing payload...");
-
             var entry = payload.GetProperty("entry")[0];
             var changes = entry.GetProperty("changes")[0];
             var value = changes.GetProperty("value");
@@ -58,23 +55,30 @@ public class WhatsAppMetaWebhookController : ControllerBase
             Console.WriteLine($"Incoming message from: {from}");
             Console.WriteLine($"Message text: {text}");
 
-            var phoneNumberId = value.GetProperty("metadata")
-                                     .GetProperty("phone_number_id")
-                                     .GetString()!;
+            var phoneNumberId = value
+                .GetProperty("metadata")
+                .GetProperty("phone_number_id")
+                .GetString()!;
 
             Console.WriteLine($"PhoneNumberId detected: {phoneNumberId}");
 
             Console.WriteLine("Calling BotConversationEngine...");
 
-            var response = await _engine.ProcessMessageAsync(from, text);
+            var responses = await _engine.ProcessMessageAsync(from, text);
 
-            Console.WriteLine($"Bot response generated: {response}");
+            Console.WriteLine($"Bot responses count: {responses.Count}");
 
-            Console.WriteLine("Sending message to WhatsApp API...");
+            foreach (var response in responses)
+            {
+                Console.WriteLine($"Sending message: {response}");
 
-            await _whatsApp.SendTextMessageAsync(phoneNumberId, from, response);
+                await _whatsApp.SendTextMessageAsync(phoneNumberId, from, response);
 
-            Console.WriteLine("Message successfully sent to WhatsApp.");
+                // pequeño delay para mejorar experiencia visual en WhatsApp
+                await Task.Delay(500);
+            }
+
+            Console.WriteLine("All messages sent successfully.");
 
             return Ok();
         }
@@ -88,7 +92,6 @@ public class WhatsAppMetaWebhookController : ControllerBase
         }
     }
 
-    // 🔐 VERIFICACIÓN INICIAL DEL WEBHOOK
     [HttpGet]
     public IActionResult Verify(
         [FromQuery(Name = "hub.mode")] string mode,
