@@ -20,13 +20,13 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore ADSI.CHATBOT.Solution/ChatBot.Api.csproj
+        run: dotnet restore src/ChatBot.Api/ChatBot.Api.csproj
 
       - name: Build
-        run: dotnet build ADSI.CHATBOT.Solution/ChatBot.Api.csproj --configuration Release --no-restore
+        run: dotnet build src/ChatBot.Api/ChatBot.Api.csproj --configuration Release --no-restore
 
       - name: Publish
-        run: dotnet publish ADSI.CHATBOT.Solution/ChatBot.Api.csproj -c Release -o out
+        run: dotnet publish src/ChatBot.Api/ChatBot.Api.csproj -c Release -o out
 
       - name: Docker Build
         run: docker build -t chatbot-api .
