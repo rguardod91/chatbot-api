@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="../Application/ChatBot.Application/ChatBot.Application.csproj" />
-  <Project Path="../Domain/ChatBot.Domain/ChatBot.Domain.csproj" />
-  <Project Path="../Infraestructure/ChatBot.Infrastructure/ChatBot.Infrastructure.csproj" />
-  <Project Path="ChatBot.Api.csproj" />
-</Solution>

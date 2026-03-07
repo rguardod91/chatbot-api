@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ChatBot.Api/ChatBot.Api.csproj" />
+    <Project Path="src/ChatBot.Application/ChatBot.Application.csproj" />
+    <Project Path="src/ChatBot.Domain/ChatBot.Domain.csproj" />
+    <Project Path="src/ChatBot.Infrastructure/ChatBot.Infrastructure.csproj" />
+  </Folder>
+</Solution>
