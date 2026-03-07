@@ -5,7 +5,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 # Copiamos los fuentes y publicamos
 COPY . .
-RUN dotnet publish "ADSI.CHATBOT.Solution/ChatBot.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "src/ChatBot.Api/ChatBot.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # =========================
 # RUNTIME STAGE
