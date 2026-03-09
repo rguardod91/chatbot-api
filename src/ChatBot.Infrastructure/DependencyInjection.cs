@@ -25,12 +25,18 @@ namespace ChatBot.Infrastructure
             this IServiceCollection services,
             IConfiguration configuration)
         {
+            // ========================
+            // AWS CONFIGURATION
+            // ========================
+
             services.Configure<AwsSettings>(
                 configuration.GetSection("AWS"));
 
             services.AddDefaultAWSOptions(configuration.GetAWSOptions());
             services.AddAWSService<IAmazonSecretsManager>();
+
             services.AddScoped<ISecretsManagerService, SecretsManagerService>();
+
 
             // ========================
             // DATABASE
@@ -40,56 +46,134 @@ namespace ChatBot.Infrastructure
             {
                 var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 
-                options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"))
+                var connectionString = configuration.GetConnectionString("DefaultConnection");
+
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    var logger = loggerFactory.CreateLogger("DatabaseConfig");
+                    logger.LogWarning("ConnectionStrings:DefaultConnection está vacío.");
+                }
+
+                options.UseSqlServer(connectionString)
                        .UseLoggerFactory(loggerFactory)
                        .EnableDetailedErrors()
                        .EnableSensitiveDataLogging();
             });
 
-            services.AddScoped<DbContext>(sp => sp.GetRequiredService<TranxaDbContext>());
+            services.AddScoped<DbContext>(sp =>
+                sp.GetRequiredService<TranxaDbContext>());
+
+
+            // ========================
+            // REPOSITORIES
+            // ========================
 
             services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+
             services.AddScoped<ITranxaSessionRepository, TranxaSessionRepository>();
+            services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<ISessionRepository, SessionRepository>();
+            services.AddScoped<IMessageRepository, MessageRepository>();
+            services.AddScoped<ISessionStateRepository, SessionStateRepository>();
+            services.AddScoped<IAuditEventRepository, AuditEventRepository>();
+            services.AddScoped<IExternalServiceLogRepository, ExternalServiceLogRepository>();
+            services.AddScoped<ISystemLogRepository, SystemLogRepository>();
+
 
             // ========================
-            // SERVICES
+            // CORE SERVICES
             // ========================
 
             services.AddScoped<ISessionManager, SessionManager>();
-            services.AddScoped<IConversationStateService, ExternalServices.Services.ConversationStateService>();
+
+            services.AddScoped<IConversationStateService,
+                ExternalServices.Services.ConversationStateService>();
+
             services.AddScoped<IBotConversationEngine, BotConversationEngine>();
-            services.AddScoped<IUserRepository, UserRepository>();
 
-            services.AddScoped<ISessionRepository, SessionRepository>();
 
-            services.AddScoped<IMessageRepository, MessageRepository>();
-
-            services.AddScoped<ISessionStateRepository, SessionStateRepository>();
-
-            services.AddScoped<IAuditEventRepository, AuditEventRepository>();
-
-            services.AddScoped<IExternalServiceLogRepository, ExternalServiceLogRepository>();
-
-            services.AddScoped<ISystemLogRepository, SystemLogRepository>();
+            // ========================
+            // LOGGING
+            // ========================
 
             services.AddScoped(typeof(IAppLogger<>), typeof(AppLogger<>));
 
+
+            // ========================
+            // HTTP BASE SERVICE
+            // ========================
+
             services.AddHttpClient<IHttpService, HttpService>();
 
-            services.AddHttpClient<ITranxaTokenService, TranxaTokenService>(client =>
+
+            // ========================
+            // TRANXA TOKEN SERVICE
+            // ========================
+
+            services.AddHttpClient<ITranxaTokenService, TranxaTokenService>((sp, client) =>
             {
-                client.BaseAddress = new Uri(configuration["Tranxa:BaseUrl"]!);
+                var config = sp.GetRequiredService<IConfiguration>();
+                var logger = sp.GetRequiredService<ILogger<TranxaTokenService>>();
+
+                var baseUrl = config["Tranxa:BaseUrl"];
+
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                {
+                    logger.LogWarning("Tranxa:BaseUrl no está configurado.");
+                }
+                else
+                {
+                    client.BaseAddress = new Uri(baseUrl);
+                    logger.LogInformation("TranxaTokenService configurado con BaseUrl {BaseUrl}", baseUrl);
+                }
             });
+
+
+            // ========================
+            // TRANXA MAIN SERVICE
+            // ========================
 
             services.AddHttpClient<ITranxaService, TranxaService>((sp, client) =>
             {
                 var config = sp.GetRequiredService<IConfiguration>();
-                client.BaseAddress = new Uri(config["Tranxa:BaseUrlUltraRed"]!);
+                var logger = sp.GetRequiredService<ILogger<TranxaService>>();
+
+                var baseUrl = config["Tranxa:BaseUrlUltraRed"];
+
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                {
+                    logger.LogWarning("Tranxa:BaseUrlUltraRed no está configurado.");
+                }
+                else
+                {
+                    client.BaseAddress = new Uri(baseUrl);
+                    logger.LogInformation("TranxaService configurado con BaseUrl {BaseUrl}", baseUrl);
+                }
             });
 
-            services.AddHttpClient<IWhatsAppService, WhatsAppService>();
-            services.AddHttpClient<ITelegramService, TelegramService>();
+
+            // ========================
+            // WHATSAPP SERVICE
+            // ========================
+
+            services.AddHttpClient<IWhatsAppService, WhatsAppService>((sp, client) =>
+            {
+                var logger = sp.GetRequiredService<ILogger<WhatsAppService>>();
+                logger.LogInformation("WhatsAppService HttpClient inicializado.");
+            });
+
+
+            // ========================
+            // TELEGRAM SERVICE
+            // ========================
+
+            services.AddHttpClient<ITelegramService, TelegramService>((sp, client) =>
+            {
+                var logger = sp.GetRequiredService<ILogger<TelegramService>>();
+                logger.LogInformation("TelegramService HttpClient inicializado.");
+            });
+
 
             return services;
         }
