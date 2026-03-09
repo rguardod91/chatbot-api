@@ -24,8 +24,12 @@ builder.Services.AddSwaggerGen(options =>
         Description = "WhatsApp Banking ChatBot"
     });
 });
+
 // Memory Cache
 builder.Services.AddMemoryCache();
+
+// Health Checks
+builder.Services.AddHealthChecks();
 
 // DI
 builder.Services.AddApplication();
@@ -42,14 +46,22 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Swagger SIEMPRE ACTIVO
-app.UseSwagger();
-app.UseSwaggerUI();
+// Swagger solo en Development (recomendado)
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseHttpsRedirection();
+
 app.UseCors("AllowAll");
+
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Health endpoint requerido por AWS
+app.MapHealthChecks("/health");
 
 app.Run();
