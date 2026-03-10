@@ -56,8 +56,12 @@ namespace ChatBot.Infrastructure
 
                 options.UseSqlServer(connectionString)
                        .UseLoggerFactory(loggerFactory)
-                       .EnableDetailedErrors()
-                       .EnableSensitiveDataLogging();
+                       .EnableDetailedErrors();
+
+                if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+                {
+                    options.EnableSensitiveDataLogging();
+                }
             });
 
             services.AddScoped<DbContext>(sp =>
