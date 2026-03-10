@@ -9,5 +9,8 @@ namespace ChatBot.Application.Interfaces.Persistence
         Task AddAsync(TranxaSession session);
 
         Task UpdateAsync(TranxaSession session);
+
+        Task<TranxaSession?> GetActiveSessionAsync(Guid userId, int timeoutMinutes);
+        Task ExpireSessionAsync(TranxaSession session);
     }
 }

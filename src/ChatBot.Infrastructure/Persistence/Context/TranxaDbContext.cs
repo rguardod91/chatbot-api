@@ -29,6 +29,10 @@ public class TranxaDbContext : DbContext
     {
         modelBuilder.HasDefaultSchema("Tranxa");
 
+        modelBuilder.Entity<TranxaSession>()
+            .Property(e => e.Status)
+            .HasConversion<string>();
+
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TranxaDbContext).Assembly);
 
         base.OnModelCreating(modelBuilder);

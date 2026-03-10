@@ -8,7 +8,6 @@ using ChatBot.Domain.Enums;
 using ChatBot.Domain.ValueObjects;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace ChatBot.Infrastructure.Services;
 
@@ -25,7 +24,6 @@ public class BotConversationEngine : IBotConversationEngine
     private readonly IUnitOfWork _unitOfWork;
 
     private const int MAX_ATTEMPTS = 3;
-    private static readonly TimeSpan SessionTimeout = TimeSpan.FromMinutes(5);
 
     public BotConversationEngine(
         ISessionManager sessionManager,
@@ -75,24 +73,47 @@ public class BotConversationEngine : IBotConversationEngine
         // SESSION
         //---------------------------------------
 
-        var session = await _sessionRepository.GetActiveSessionAsync(user.Id);
+        //---------------------------------------
+        // SESSION
+        //---------------------------------------
+
+        var session = await _sessionRepository.GetActiveSessionAsync(user.Id, 5);
 
         if (session == null)
         {
-            session = new TranxaSession
-            {
-                UserId = user.Id,
-                StartedAt = DateTime.UtcNow,
-                LastActivityAt = DateTime.UtcNow,
-                Status = SessionStatus.Active
-            };
+            Console.WriteLine($"[BOT] No active session found for user {user.Id}");
 
-            await _sessionRepository.AddAsync(session);
+            //---------------------------------------
+            // DOUBLE CHECK (ANTI RACE CONDITION)
+            //---------------------------------------
+
+            session = await _sessionRepository.GetActiveSessionAsync(user.Id, 5);
+
+            if (session == null)
+            {
+                Console.WriteLine($"[BOT] Creating new session for user {user.Id}");
+
+                session = new TranxaSession
+                {
+                    UserId = user.Id,
+                    StartedAt = DateTime.UtcNow,
+                    LastActivityAt = DateTime.UtcNow,
+                    Status = SessionStatus.Active,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _sessionRepository.AddAsync(session);
+
+                await _unitOfWork.SaveChangesAsync();
+            }
         }
         else
         {
             session.LastActivityAt = DateTime.UtcNow;
+
             await _sessionRepository.UpdateAsync(session);
+
+            await _unitOfWork.SaveChangesAsync();
         }
 
         //---------------------------------------
@@ -129,24 +150,38 @@ public class BotConversationEngine : IBotConversationEngine
         }
 
         //---------------------------------------
-        // SESSION TIMEOUT
+        // SESSION TIMEOUT (CONTROLADO POR DB)
         //---------------------------------------
 
-        if (DateTime.UtcNow - ctx.LastActivity > SessionTimeout)
-        {
-            Console.WriteLine("[BOT] Session timeout");
+        var sessionTimeoutMinutes = 1;
 
-            ctx.Step = ConversationStep.Start;
-            ctx.StepAttempts = 0;
-            ctx.OtpAttempts = 0;
+        if (session.LastActivityAt < DateTime.UtcNow.AddMinutes(-sessionTimeoutMinutes))
+        {
+            Console.WriteLine($"[BOT] Session expired | sessionId={session.Id}");
+
+            //---------------------------------------
+            // UPDATE SESSION STATUS IN DB
+            //---------------------------------------
+
+            session.Status = SessionStatus.Expired;
+            session.UpdatedAt = DateTime.UtcNow;
+
+            await _sessionRepository.UpdateAsync(session);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            //---------------------------------------
+            // RESET CONTEXT
+            //---------------------------------------
+
+            ctx.ResetSession();
 
             responses.Add("⏳ Tu sesión expiró por inactividad.\n\nEscribe *hola* para comenzar nuevamente.");
 
             await _sessionManager.SaveSessionAsync(userId, ctx);
+
             return responses;
         }
-
-        ctx.LastActivity = DateTime.UtcNow;
 
         //---------------------------------------
         // LOOP DETECTION
