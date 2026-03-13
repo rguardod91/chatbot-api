@@ -255,10 +255,11 @@ public class BotConversationEngine : IBotConversationEngine
     // VALIDATION ENGINE
     //---------------------------------------
 
-    private bool IsNumeric(string value) => value.All(char.IsDigit);
+    private static bool IsNumeric(string value)
+      => Regex.IsMatch(value, @"^[^\s]+$");
 
-    private bool IsPassport(string value)
-        => Regex.IsMatch(value, "^[A-Za-z0-9]+$");
+    private static bool IsPassport(string value)
+        => Regex.IsMatch(value, @"^[^\s]+$");
 
     //---------------------------------------
     // STEPS
@@ -322,19 +323,19 @@ public class BotConversationEngine : IBotConversationEngine
         if (otp == null || otp.OtpStatus != "Approved")
         {
             ctx.Step = ConversationStep.Start;
-            return "❌ No fue posible generar el OTP.";
+            return "❌ No fue posible generar el Código de Validación.";
         }
 
         ctx.Step = ConversationStep.ValidatingUser;
         ctx.OtpAttempts = 0;
 
-        return "🔐 Hemos enviado un código OTP a tu correo registrado.\n\nCuando lo recibas ingresa el código:";
+        return "🔐 Hemos enviado un Código de Validación a tu correo registrado.\n\nCuando lo recibas ingresa el código:";
     }
 
     private async Task<string> HandleOtpValidation(SessionContext ctx, string otp)
     {
         if (!IsNumeric(otp))
-            return "🙈 El OTP solo debe contener números.";
+            return "🙈 El Código de Validación solo debe contener números.";
 
         var validation = await _tranxaService.ValidateOtpAsync(ctx.UserEmail!, otp);
 
@@ -347,10 +348,10 @@ public class BotConversationEngine : IBotConversationEngine
                 ctx.OtpAttempts = 0;
                 await _tranxaService.GenerateOtpAsync(ctx.UserEmail!);
 
-                return "⚠️ Ingresaste incorrectamente el OTP 3 veces.\n\nTe enviamos un nuevo código.\n\nIngresa el nuevo OTP:";
+                return "⚠️ Ingresaste incorrectamente el Código de Validación 3 veces.\n\nTe enviamos un nuevo código.\n\nIngresa el nuevo Código de Validación:";
             }
 
-            return $"❌ OTP incorrecto.\nIntentos restantes: {MAX_ATTEMPTS - ctx.OtpAttempts}";
+            return $"❌ Código de Validación incorrecto.\nIntentos restantes: {MAX_ATTEMPTS - ctx.OtpAttempts}";
         }
 
         ctx.Step = ConversationStep.SelectProduct;

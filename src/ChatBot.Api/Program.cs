@@ -21,7 +21,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "ChatBot API",
         Version = "v1",
-        Description = "WhatsApp Banking ChatBot"
+        Description = "WhatsApp WOPA Banking ChatBot"
     });
 });
 
