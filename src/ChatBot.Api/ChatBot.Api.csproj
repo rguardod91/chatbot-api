@@ -10,6 +10,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Filters\**" />
+    <Compile Remove="Middlewares\**" />
+    <Content Remove="Filters\**" />
+    <Content Remove="Middlewares\**" />
+    <EmbeddedResource Remove="Filters\**" />
+    <EmbeddedResource Remove="Middlewares\**" />
+    <None Remove="Filters\**" />
+    <None Remove="Middlewares\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3">
       <PrivateAssets>all</PrivateAssets>
@@ -26,11 +37,6 @@
   <ItemGroup>
     <ProjectReference Include="..\ChatBot.Application\ChatBot.Application.csproj" />
     <ProjectReference Include="..\ChatBot.Infrastructure\ChatBot.Infrastructure.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Middlewares\" />
-    <Folder Include="Filters\" />
   </ItemGroup>
 
 </Project>

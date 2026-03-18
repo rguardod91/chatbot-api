@@ -73,10 +73,6 @@ public class BotConversationEngine : IBotConversationEngine
         // SESSION
         //---------------------------------------
 
-        //---------------------------------------
-        // SESSION
-        //---------------------------------------
-
         var session = await _sessionRepository.GetActiveSessionAsync(user.Id, 5);
 
         if (session == null)
@@ -153,7 +149,7 @@ public class BotConversationEngine : IBotConversationEngine
         // SESSION TIMEOUT (CONTROLADO POR DB)
         //---------------------------------------
 
-        var sessionTimeoutMinutes = 1;
+        var sessionTimeoutMinutes = 5;
 
         if (session.LastActivityAt < DateTime.UtcNow.AddMinutes(-sessionTimeoutMinutes))
         {
@@ -369,40 +365,47 @@ public class BotConversationEngine : IBotConversationEngine
         if (index < 1 || index > ctx.Cards.Count)
             return $"❌ Selección inválida.\n\nIngresa un número entre 1 y {ctx.Cards.Count}.";
 
-        ctx.SelectedTokenId = ctx.Cards[index - 1].TokenId;
+        var selectedCard = ctx.Cards[index - 1];
+        ctx.SelectedTokenId = selectedCard.TokenId;
         ctx.Step = ConversationStep.AuthenticatedMenu;
 
-        return GetMenu();
+        return GetMenu(selectedCard);
     }
 
     private async Task<string> HandleAuthenticatedMenu(string userId, SessionContext ctx, string input, TranxaUser user, TranxaSession session)
     {
+        var card = ctx.Cards.First(c => c.TokenId == ctx.SelectedTokenId);
+
         if (!IsNumeric(input))
-            return "🙈 Ingresa un número del menú.\n\n" + GetMenu();
+            return "🙈 Ingresa un número del menú.\n\n" + GetMenu(card);
 
         int option = int.Parse(input);
-
-        var card = ctx.Cards.First(c => c.TokenId == ctx.SelectedTokenId);
 
         switch (option)
         {
             case 1:
-                return $"💰 Saldo disponible\n{card.CurrBalance} {card.Currency}\n\n{GetMenu()}";
+                return $"💰 Saldo disponible\n{card.CurrBalance} {card.Currency}\n\n{GetMenu(card)}";
 
             case 2:
-
                 Console.WriteLine("[BOT] Consultando movimientos...");
 
                 return "⏳ Consultando últimos movimientos...\n\n"
                        + FormatMovementsTable(card)
                        + "\n\n"
-                       + GetMenu();
+                       + GetMenu(card);
 
             case 3:
+                // Status 0 significa activo. Diferente de 0 significa inactivo/bloqueado.
+                bool isCurrentlyActive = card.CardStatus == 0;
 
-                Console.WriteLine($"[BOT] Iniciando bloqueo tarjeta {card.TokenId}");
+                // Si está activo, enviamos 1 para desactivar temporalmente. Si está inactivo, enviamos 0 para activar.
+                int statusToSend = isCurrentlyActive ? 1 : 0;
+                string actionResultText = isCurrentlyActive ? "Desactivado temporalmente" : "Activado exitosamente";
+                string eventType = isCurrentlyActive ? "DEACTIVATE_CARD" : "ACTIVATE_CARD";
 
-                var result = await _tranxaService.BlockCardAsync(card.TokenId, 2);
+                Console.WriteLine($"[BOT] Iniciando {(isCurrentlyActive ? "desactivación" : "activación")} tarjeta {card.TokenId}");
+
+                var result = await _tranxaService.BlockCardAsync(card.TokenId, statusToSend);
 
                 var estado = TranslateResult(result?.Result);
                 var approvalCode = result?.ApprovalCode ?? "N/A";
@@ -412,7 +415,7 @@ public class BotConversationEngine : IBotConversationEngine
                     {
                         SessionId = session.Id,
                         UserId = user.Id,
-                        EventType = "BLOCK_CARD",
+                        EventType = eventType,
                         ExternalReference = card.TokenId,
                         Result = result?.Result ?? "ERROR",
                         Details = $"ApprovalCode={approvalCode}",
@@ -421,9 +424,15 @@ public class BotConversationEngine : IBotConversationEngine
 
                 await _unitOfWork.SaveChangesAsync();
 
-                Console.WriteLine($"[BOT] Resultado bloqueo={estado} ApprovalCode={approvalCode}");
+                // Actualizamos el estado en memoria para que el menú refleje el cambio inmediatamente
+                if (result?.Result == "Approved")
+                {
+                    card.CardStatus = isCurrentlyActive ? 1 : 0;
+                }
 
-                return $"🔒 Resultado del bloqueo\n\nEstado: {estado}\nCódigo de aprobación: {approvalCode}\n\n{GetMenu()}";
+                Console.WriteLine($"[BOT] Resultado={estado} ApprovalCode={approvalCode}");
+
+                return $"⚙️ El producto ****{card.Pan[^4..]} ha sido {actionResultText}.\n\nEstado: {estado}\nCódigo de aprobación: {approvalCode}\n\n{GetMenu(card)}";
 
             case 4:
                 ctx.Step = ConversationStep.SelectProduct;
@@ -434,7 +443,7 @@ public class BotConversationEngine : IBotConversationEngine
                 return "👋 Sesión finalizada.\n\nEscribe *hola* para iniciar nuevamente.";
 
             default:
-                return "❌ Opción inválida.\n\n" + GetMenu();
+                return "❌ Opción inválida.\n\n" + GetMenu(card);
         }
     }
 
@@ -501,6 +510,13 @@ public class BotConversationEngine : IBotConversationEngine
         return sb.ToString();
     }
 
-    private static string GetMenu()
-        => "¿Qué deseas hacer ahora?\n1️⃣ Consultar saldo\n2️⃣ Ver movimientos\n3️⃣ Bloquear tarjeta\n4️⃣ Cambiar producto\n5️⃣ Salir";
+    private static string GetMenu(CardDto card)
+    {
+        // Si el status es diferente de 0, mostramos la opción de activar.
+        string activationMenuText = card.CardStatus == 0
+            ? "3️⃣ Desactivación temporal"
+            : "3️⃣ Activar tarjeta";
+
+        return $"¿Qué deseas hacer ahora?\n1️⃣ Consultar saldo\n2️⃣ Ver movimientos\n{activationMenuText}\n4️⃣ Cambiar producto\n5️⃣ Salir";
+    }
 }
