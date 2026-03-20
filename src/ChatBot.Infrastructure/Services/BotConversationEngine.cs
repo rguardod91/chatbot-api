@@ -399,7 +399,7 @@ public class BotConversationEngine : IBotConversationEngine
                 bool isCurrentlyActive = card.CardStatus == 0;
 
                 // Si está activo, enviamos 1 para desactivar temporalmente. Si está inactivo, enviamos 0 para activar.
-                int statusToSend = isCurrentlyActive ? 1 : 0;
+                int statusToSend = isCurrentlyActive ? 9 : 0;
                 string actionResultText = isCurrentlyActive ? "Desactivado temporalmente" : "Activado exitosamente";
                 string eventType = isCurrentlyActive ? "DEACTIVATE_CARD" : "ACTIVATE_CARD";
 
@@ -427,7 +427,7 @@ public class BotConversationEngine : IBotConversationEngine
                 // Actualizamos el estado en memoria para que el menú refleje el cambio inmediatamente
                 if (result?.Result == "Approved")
                 {
-                    card.CardStatus = isCurrentlyActive ? 1 : 0;
+                    card.CardStatus = isCurrentlyActive ? 9 : 0;
                 }
 
                 Console.WriteLine($"[BOT] Resultado={estado} ApprovalCode={approvalCode}");
