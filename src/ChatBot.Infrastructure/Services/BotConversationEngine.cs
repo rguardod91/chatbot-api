@@ -266,7 +266,7 @@ public class BotConversationEngine : IBotConversationEngine
         ctx.Step = ConversationStep.WaitingForDocumentType;
         ctx.StepAttempts = 0;
 
-        return "🏦 Banca Digital WOPA\n\nSelecciona tipo de documento:\n1️⃣ Cédula\n2️⃣ Pasaporte";
+        return "🏦 Bienvenido a tu Banca Digital\n\nSelecciona tipo de documento:\n1️⃣ Cédula\n2️⃣ Pasaporte";
     }
 
     private string HandleDocType(SessionContext ctx, string input)
@@ -325,7 +325,7 @@ public class BotConversationEngine : IBotConversationEngine
         ctx.Step = ConversationStep.ValidatingUser;
         ctx.OtpAttempts = 0;
 
-        return "🔐 Hemos enviado un Código de Validación a tu correo registrado.\n\nCuando lo recibas ingresa el código:";
+        return "🔐 Hemos enviado un Código unico de validación al correo registrado. Por favor valida tu bandeja de entrada\n\nCuando lo recibas, por favor ingresa el código:";
     }
 
     private async Task<string> HandleOtpValidation(SessionContext ctx, string otp)
@@ -357,10 +357,8 @@ public class BotConversationEngine : IBotConversationEngine
 
     private string HandleProductSelection(SessionContext ctx, string input)
     {
-        if (!IsNumeric(input))
-            return "🙈 Ingresa el número del producto.";
-
-        int index = int.Parse(input);
+        if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input.Trim(), out int index))
+            return "🙈 Ingresa el número del producto sobre el cual deseas realizar operaciones.";
 
         if (index < 1 || index > ctx.Cards.Count)
             return $"❌ Selección inválida.\n\nIngresa un número entre 1 y {ctx.Cards.Count}.";
@@ -376,10 +374,11 @@ public class BotConversationEngine : IBotConversationEngine
     {
         var card = ctx.Cards.First(c => c.TokenId == ctx.SelectedTokenId);
 
-        if (!IsNumeric(input))
+        if (string.IsNullOrWhiteSpace(input) || !int.TryParse(input.Trim(), out int option))
             return "🙈 Ingresa un número del menú.\n\n" + GetMenu(card);
 
-        int option = int.Parse(input);
+        if (option < 1 || option > 5)
+            return "❌ Opción inválida. Por favor ingresa un número entre 1 y 5.\n\n" + GetMenu(card);
 
         switch (option)
         {
@@ -517,6 +516,6 @@ public class BotConversationEngine : IBotConversationEngine
             ? "3️⃣ Desactivación temporal"
             : "3️⃣ Activar tarjeta";
 
-        return $"¿Qué deseas hacer ahora?\n1️⃣ Consultar saldo\n2️⃣ Ver movimientos\n{activationMenuText}\n4️⃣ Cambiar producto\n5️⃣ Salir";
+        return $"¿Deseas realizar algo más?\n1️⃣ Consultar saldo\n2️⃣ Ver movimientos\n{activationMenuText}\n4️⃣ Cambiar producto\n5️⃣ Salir";
     }
 }
